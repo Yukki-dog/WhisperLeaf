@@ -2,13 +2,13 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Whisper Leaf — Полная версия</title>
+<title>Whisper Leaf — Атмосферный платформер</title>
 <style>
-  html,body{margin:0;overflow:hidden;height:100%;background:#a8d5a2;}
-  canvas{display:block;width:100%;height:100%;}
-  #score{
-    position:absolute;top:10px;left:10px;color:white;font:20px Arial,sans-serif;text-shadow:1px 1px 2px #000;
-  }
+html,body{margin:0;overflow:hidden;height:100%;background:#88c070;}
+canvas{display:block;width:100%;height:100%;}
+#score{
+  position:absolute;top:10px;left:10px;color:white;font:22px Arial,sans-serif;text-shadow:2px 2px 3px #000;
+}
 </style>
 </head>
 <body>
@@ -22,65 +22,87 @@ canvas.height = window.innerHeight;
 
 const keys = {};
 let score = 0;
+let cameraX = 0;
 
 // Игрок
-let leaf = {x:150,y:0,w:40,h:40,vx:0,vy:0,speed:5,jumpPower:12,onGround:false,doubleJump:true};
+let leaf = {x:150,y:0,w:40,h:40,vx:0,vy:0,speed:5,jumpPower:13,onGround:false,doubleJump:true};
 
 // Физика
-const gravity = 0.7;
+const gravity = 0.8;
 const friction = 0.85;
-const groundLevel = canvas.height - 120;
+const groundY = canvas.height - 120;
 
 // Светлячки
 const fireflies = [
-  {x:500,y:groundLevel-60, collected:false},
-  {x:900,y:groundLevel-80, collected:false},
-  {x:1300,y:groundLevel-100, collected:false}
+  {x:600,y:groundY-60, collected:false},
+  {x:1000,y:groundY-100, collected:false},
+  {x:1400,y:groundY-80, collected:false},
+  {x:1800,y:groundY-120, collected:false},
+  {x:2200,y:groundY-70, collected:false}
 ];
 
 // Лужи
 const puddles = [
-  {x:700,y:groundLevel-20,w:60,h:20},
-  {x:1100,y:groundLevel-20,w:100,h:20}
+  {x:800,y:groundY-20,w:70,h:20},
+  {x:1500,y:groundY-20,w:100,h:20}
 ];
 
-// Платформы (движущиеся)
+// Платформы
 const platforms = [
-  {x:600,y:groundLevel-150,w:120,h:20,vx:1,range:100,startX:600},
-  {x:1000,y:groundLevel-200,w:150,h:20,vx:1.5,range:120,startX:1000}
+  {x:700,y:groundY-160,w:130,h:20,vx:1,range:150,startX:700},
+  {x:1200,y:groundY-220,w:150,h:20,vx:1.2,range:180,startX:1200},
+  {x:2000,y:groundY-150,w:120,h:20,vx:1.5,range:200,startX:2000}
 ];
+
+// Частицы листьев
+const leaves = [];
 
 // Финальное дерево
-const tree = {x:1600,y:groundLevel-200,w:80,h:200,visible:false};
+const tree = {x:2500,y:groundY-200,w:100,h:200,visible:false};
 
-// Рисуем фон
+// Функции отрисовки
 function drawBackground(){
+  // градиент неба
   const grad = ctx.createLinearGradient(0,0,0,canvas.height);
-  grad.addColorStop(0,'#f8f3e7');
-  grad.addColorStop(1,'#a7d99c');
+  grad.addColorStop(0,'#e0f4ff');
+  grad.addColorStop(1,'#88c070');
   ctx.fillStyle = grad;
   ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // мягкие деревья на фоне (параллакс)
+  for(let i=0;i<10;i++){
+    const tx = (i*300 - cameraX*0.3)%3000;
+    const ty = groundY-180;
+    ctx.fillStyle='rgba(50,100,40,0.4)';
+    ctx.beginPath();
+    ctx.arc(tx,ty,100,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle='rgba(70,130,50,0.3)';
+    ctx.beginPath();
+    ctx.arc(tx+40,ty+20,60,0,Math.PI*2);
+    ctx.fill();
+  }
 }
 
-// Рисуем землю
 function drawGround(){
   ctx.fillStyle = '#3b5f2d';
-  ctx.fillRect(0,groundLevel,canvas.width,canvas.height-groundLevel);
-  ctx.fillStyle = '#4c7a36';
-  for(let i=0;i<canvas.width;i+=80){
+  ctx.fillRect(-cameraX,groundY,3000,canvas.height-groundY);
+
+  // неровности земли
+  ctx.fillStyle='#4c7a36';
+  for(let i=-cameraX;i<3000;i+=80){
     ctx.beginPath();
-    ctx.moveTo(i,groundLevel);
-    ctx.lineTo(i+40,groundLevel-10);
-    ctx.lineTo(i+80,groundLevel);
+    ctx.moveTo(i,groundY);
+    ctx.lineTo(i+40,groundY-10);
+    ctx.lineTo(i+80,groundY);
     ctx.closePath();
     ctx.fill();
   }
 }
 
-// Рисуем листочек
 function drawLeaf(l){
   ctx.save();
-  ctx.translate(l.x+l.w/2,l.y+l.h/2);
+  ctx.translate(l.x+ l.w/2 - cameraX, l.y + l.h/2);
   ctx.rotate(Math.sin(Date.now()/300)*0.05);
   const grad = ctx.createLinearGradient(-l.w,-l.h/2,l.w,l.h/2);
   grad.addColorStop(0,'#5ba93a');
@@ -100,45 +122,57 @@ function drawLeaf(l){
   ctx.restore();
 }
 
-// Рисуем светлячки
 function drawFireflies(){
   fireflies.forEach(f=>{
     if(f.collected) return;
-    ctx.fillStyle = 'gold';
+    ctx.fillStyle='gold';
     ctx.beginPath();
-    ctx.arc(f.x,f.y,6+Math.sin(Date.now()/200)*2,0,Math.PI*2);
+    ctx.arc(f.x-cameraX,f.y,6+Math.sin(Date.now()/200)*2,0,Math.PI*2);
     ctx.fill();
   });
 }
 
-// Рисуем лужи
 function drawPuddles(){
   ctx.fillStyle='blue';
   puddles.forEach(p=>{
-    ctx.fillRect(p.x,p.y,p.w,p.h);
+    ctx.fillRect(p.x-cameraX,p.y,p.w,p.h);
   });
 }
 
-// Рисуем платформы
 function drawPlatforms(){
   ctx.fillStyle='#8b4513';
   platforms.forEach(p=>{
-    ctx.fillRect(p.x,p.y,p.w,p.h);
+    ctx.fillRect(p.x-cameraX,p.y,p.w,p.h);
   });
 }
 
-// Рисуем дерево
 function drawTree(){
   if(!tree.visible) return;
   ctx.fillStyle='#4b2e0f';
-  ctx.fillRect(tree.x,tree.y,tree.w,tree.h);
+  ctx.fillRect(tree.x-cameraX,tree.y,tree.w,tree.h);
   ctx.fillStyle='#228B22';
   ctx.beginPath();
-  ctx.arc(tree.x+tree.w/2,tree.y,80,0,Math.PI*2);
+  ctx.arc(tree.x+tree.w/2-cameraX,tree.y,80,0,Math.PI*2);
   ctx.fill();
 }
 
-// Обновляем физику
+// Частицы листьев
+function updateLeaves(){
+  if(Math.random()<0.1){
+    leaves.push({x:cameraX+canvas.width, y:groundY-200-Math.random()*200, vx:-1-Math.random()*1, vy:Math.random()*0.5, size:5+Math.random()*5});
+  }
+  leaves.forEach((l,i)=>{
+    l.x += l.vx;
+    l.y += l.vy;
+    ctx.fillStyle='rgba(50,150,0,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(l.x-cameraX,l.y,l.size,l.size*0.5,0,0,Math.PI*2);
+    ctx.fill();
+    if(l.x<cameraX-50) leaves.splice(i,1);
+  });
+}
+
+// Обновление физики
 function update(){
   // движение
   if(keys['ArrowLeft']||keys['a']) leaf.vx -= leaf.speed*0.2;
@@ -149,31 +183,31 @@ function update(){
   leaf.x += leaf.vx;
   leaf.y += leaf.vy;
 
-  // Коллизия с землей
-  if(leaf.y+leaf.h >= groundLevel){
-    leaf.y = groundLevel - leaf.h;
+  // камера
+  cameraX = leaf.x - 200;
+
+  // коллизия с землей
+  if(leaf.y+leaf.h >= groundY){
+    leaf.y = groundY - leaf.h;
     leaf.vy = 0;
     leaf.onGround = true;
     leaf.doubleJump = true;
-  } else {
-    leaf.onGround = false;
-  }
+  } else leaf.onGround = false;
 
-  // Лужи
+  // лужи
   puddles.forEach(p=>{
     if(leaf.x+leaf.w>p.x && leaf.x< p.x+p.w && leaf.y+leaf.h>=p.y){
-      leaf.vx *= 0.5; // замедление
-      if(leaf.onGround && leaf.vy===0) leaf.y -=0.5; // эффект "тонет"
+      leaf.vx *= 0.5;
+      if(leaf.onGround && leaf.vy===0) leaf.y -=0.5;
     }
   });
 
-  // Платформы
+  // платформы
   platforms.forEach(p=>{
     p.x += p.vx;
     if(Math.abs(p.x - p.startX)>p.range) p.vx*=-1;
-    // коллизия сверху
-    if(leaf.x+leaf.w>p.x && leaf.x< p.x+p.w &&
-       leaf.y+leaf.h>p.y && leaf.y+leaf.h< p.y+10 && leaf.vy>=0){
+    if(leaf.x+leaf.w>p.x && leaf.x<p.x+p.w &&
+       leaf.y+leaf.h>p.y && leaf.y+leaf.h<p.y+10 && leaf.vy>=0){
       leaf.y = p.y - leaf.h;
       leaf.vy = 0;
       leaf.onGround = true;
@@ -181,7 +215,7 @@ function update(){
     }
   });
 
-  // Светлячки
+  // светлячки
   fireflies.forEach(f=>{
     if(f.collected) return;
     if(leaf.x+leaf.w>f.x-6 && leaf.x<f.x+6 && leaf.y+leaf.h>f.y-6 && leaf.y<f.y+6){
@@ -191,8 +225,10 @@ function update(){
     }
   });
 
-  // Финальное дерево
+  // финальное дерево
   if(score===fireflies.length) tree.visible = true;
+
+  updateLeaves();
 }
 
 // Игровой цикл
@@ -203,8 +239,8 @@ function loop(){
   drawPlatforms();
   drawFireflies();
   drawTree();
-  update();
   drawLeaf(leaf);
+  update();
   requestAnimationFrame(loop);
 }
 loop();
