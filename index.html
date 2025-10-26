@@ -2,18 +2,17 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Whisper Leaf — Играбельный тест</title>
+<title>Whisper Leaf — Полная версия</title>
 <style>
-  html,body{
-    margin:0;
-    overflow:hidden;
-    height:100%;
-    background:#a8d5a2;
-  }
+  html,body{margin:0;overflow:hidden;height:100%;background:#a8d5a2;}
   canvas{display:block;width:100%;height:100%;}
+  #score{
+    position:absolute;top:10px;left:10px;color:white;font:20px Arial,sans-serif;text-shadow:1px 1px 2px #000;
+  }
 </style>
 </head>
 <body>
+<div id="score">Светлячки: 0</div>
 <canvas id="game"></canvas>
 <script>
 const canvas = document.getElementById('game');
@@ -21,28 +20,40 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// управление
 const keys = {};
+let score = 0;
 
-// параметры игрока
-let leaf = {
-  x: 150,
-  y: 0,
-  w: 40,
-  h: 40,
-  vx: 0,
-  vy: 0,
-  speed: 5,
-  jumpPower: 12,
-  onGround: false,
-  doubleJump: true
-};
+// Игрок
+let leaf = {x:150,y:0,w:40,h:40,vx:0,vy:0,speed:5,jumpPower:12,onGround:false,doubleJump:true};
 
-const gravity = 0.7; // более реальная гравитация
-const friction = 0.85; // лёгкое трение
+// Физика
+const gravity = 0.7;
+const friction = 0.85;
 const groundLevel = canvas.height - 120;
 
-// функции отрисовки
+// Светлячки
+const fireflies = [
+  {x:500,y:groundLevel-60, collected:false},
+  {x:900,y:groundLevel-80, collected:false},
+  {x:1300,y:groundLevel-100, collected:false}
+];
+
+// Лужи
+const puddles = [
+  {x:700,y:groundLevel-20,w:60,h:20},
+  {x:1100,y:groundLevel-20,w:100,h:20}
+];
+
+// Платформы (движущиеся)
+const platforms = [
+  {x:600,y:groundLevel-150,w:120,h:20,vx:1,range:100,startX:600},
+  {x:1000,y:groundLevel-200,w:150,h:20,vx:1.5,range:120,startX:1000}
+];
+
+// Финальное дерево
+const tree = {x:1600,y:groundLevel-200,w:80,h:200,visible:false};
+
+// Рисуем фон
 function drawBackground(){
   const grad = ctx.createLinearGradient(0,0,0,canvas.height);
   grad.addColorStop(0,'#f8f3e7');
@@ -51,25 +62,27 @@ function drawBackground(){
   ctx.fillRect(0,0,canvas.width,canvas.height);
 }
 
+// Рисуем землю
 function drawGround(){
   ctx.fillStyle = '#3b5f2d';
-  ctx.fillRect(0, groundLevel, canvas.width, canvas.height-groundLevel);
+  ctx.fillRect(0,groundLevel,canvas.width,canvas.height-groundLevel);
   ctx.fillStyle = '#4c7a36';
   for(let i=0;i<canvas.width;i+=80){
     ctx.beginPath();
-    ctx.moveTo(i, groundLevel);
-    ctx.lineTo(i+40, groundLevel-10);
-    ctx.lineTo(i+80, groundLevel);
+    ctx.moveTo(i,groundLevel);
+    ctx.lineTo(i+40,groundLevel-10);
+    ctx.lineTo(i+80,groundLevel);
     ctx.closePath();
     ctx.fill();
   }
 }
 
+// Рисуем листочек
 function drawLeaf(l){
   ctx.save();
-  ctx.translate(l.x+l.w/2, l.y+l.h/2);
+  ctx.translate(l.x+l.w/2,l.y+l.h/2);
   ctx.rotate(Math.sin(Date.now()/300)*0.05);
-  const grad = ctx.createLinearGradient(-l.w, -l.h/2, l.w, l.h/2);
+  const grad = ctx.createLinearGradient(-l.w,-l.h/2,l.w,l.h/2);
   grad.addColorStop(0,'#5ba93a');
   grad.addColorStop(1,'#397328');
   ctx.fillStyle = grad;
@@ -87,18 +100,56 @@ function drawLeaf(l){
   ctx.restore();
 }
 
-// обновление позиции игрока
+// Рисуем светлячки
+function drawFireflies(){
+  fireflies.forEach(f=>{
+    if(f.collected) return;
+    ctx.fillStyle = 'gold';
+    ctx.beginPath();
+    ctx.arc(f.x,f.y,6+Math.sin(Date.now()/200)*2,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
+// Рисуем лужи
+function drawPuddles(){
+  ctx.fillStyle='blue';
+  puddles.forEach(p=>{
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+  });
+}
+
+// Рисуем платформы
+function drawPlatforms(){
+  ctx.fillStyle='#8b4513';
+  platforms.forEach(p=>{
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+  });
+}
+
+// Рисуем дерево
+function drawTree(){
+  if(!tree.visible) return;
+  ctx.fillStyle='#4b2e0f';
+  ctx.fillRect(tree.x,tree.y,tree.w,tree.h);
+  ctx.fillStyle='#228B22';
+  ctx.beginPath();
+  ctx.arc(tree.x+tree.w/2,tree.y,80,0,Math.PI*2);
+  ctx.fill();
+}
+
+// Обновляем физику
 function update(){
-  // движение влево/вправо
-  if(keys['ArrowLeft']||keys['a']) leaf.vx -= leaf.speed * 0.2;
-  if(keys['ArrowRight']||keys['d']) leaf.vx += leaf.speed * 0.2;
+  // движение
+  if(keys['ArrowLeft']||keys['a']) leaf.vx -= leaf.speed*0.2;
+  if(keys['ArrowRight']||keys['d']) leaf.vx += leaf.speed*0.2;
 
   leaf.vx *= friction;
   leaf.vy += gravity;
   leaf.x += leaf.vx;
   leaf.y += leaf.vy;
 
-  // коллизия с землёй
+  // Коллизия с землей
   if(leaf.y+leaf.h >= groundLevel){
     leaf.y = groundLevel - leaf.h;
     leaf.vy = 0;
@@ -107,20 +158,59 @@ function update(){
   } else {
     leaf.onGround = false;
   }
+
+  // Лужи
+  puddles.forEach(p=>{
+    if(leaf.x+leaf.w>p.x && leaf.x< p.x+p.w && leaf.y+leaf.h>=p.y){
+      leaf.vx *= 0.5; // замедление
+      if(leaf.onGround && leaf.vy===0) leaf.y -=0.5; // эффект "тонет"
+    }
+  });
+
+  // Платформы
+  platforms.forEach(p=>{
+    p.x += p.vx;
+    if(Math.abs(p.x - p.startX)>p.range) p.vx*=-1;
+    // коллизия сверху
+    if(leaf.x+leaf.w>p.x && leaf.x< p.x+p.w &&
+       leaf.y+leaf.h>p.y && leaf.y+leaf.h< p.y+10 && leaf.vy>=0){
+      leaf.y = p.y - leaf.h;
+      leaf.vy = 0;
+      leaf.onGround = true;
+      leaf.doubleJump = true;
+    }
+  });
+
+  // Светлячки
+  fireflies.forEach(f=>{
+    if(f.collected) return;
+    if(leaf.x+leaf.w>f.x-6 && leaf.x<f.x+6 && leaf.y+leaf.h>f.y-6 && leaf.y<f.y+6){
+      f.collected = true;
+      score++;
+      document.getElementById('score').innerText = 'Светлячки: ' + score;
+    }
+  });
+
+  // Финальное дерево
+  if(score===fireflies.length) tree.visible = true;
 }
 
-// игровой цикл
+// Игровой цикл
 function loop(){
   drawBackground();
   drawGround();
+  drawPuddles();
+  drawPlatforms();
+  drawFireflies();
+  drawTree();
   update();
   drawLeaf(leaf);
   requestAnimationFrame(loop);
 }
 loop();
 
-// события клавиатуры
-addEventListener('keydown', e=>{
+// Управление
+addEventListener('keydown',e=>{
   keys[e.key]=true;
   if(e.key===' '){
     if(leaf.onGround){
@@ -132,7 +222,7 @@ addEventListener('keydown', e=>{
     }
   }
 });
-addEventListener('keyup', e=>keys[e.key]=false);
+addEventListener('keyup',e=>keys[e.key]=false);
 </script>
 </body>
 </html>
