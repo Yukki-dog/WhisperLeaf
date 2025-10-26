@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Whisper Leaf — Тест</title>
+<style>
+  html,body{
+    margin:0;
+    overflow:hidden;
+    height:100%;
+    background:#a8d5a2;
+  }
+  canvas{display:block;width:100%;height:100%;}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const keys = {};
+const gravity = 0.45;
+const friction = 0.8;
+const groundLevel = canvas.height - 120;
+
+let leaf = {
+  x: 120,
+  y: 0,
+  w: 40,
+  h: 40,
+  vx: 0,
+  vy: 0,
+  onGround: false,
+  doubleJump: true
+};
+
+function drawBackground(){
+  const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0,'#f8f3e7');
+  grad.addColorStop(1,'#a7d99c');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function drawGround(){
+  ctx.fillStyle = '#3b5f2d';
+  ctx.fillRect(0, groundLevel, canvas.width, canvas.height-groundLevel);
+  ctx.fillStyle = '#4c7a36';
+  for(let i=0;i<canvas.width;i+=80){
+    ctx.beginPath();
+    ctx.moveTo(i, groundLevel);
+    ctx.lineTo(i+40, groundLevel-10);
+    ctx.lineTo(i+80, groundLevel);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawLeaf(l){
+  ctx.save();
+  ctx.translate(l.x+l.w/2,l.y+l.h/2);
+  ctx.rotate(Math.sin(Date.now()/300)*0.05);
+  const grad = ctx.createLinearGradient(-l.w, -l.h/2, l.w, l.h/2);
+  grad.addColorStop(0,'#5ba93a');
+  grad.addColorStop(1,'#397328');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(0,0,l.w,l.h*0.6,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle='#2e561b';
+  ctx.lineWidth=2;
+  ctx.stroke();
+  // глазки
+  ctx.fillStyle='white';
+  ctx.beginPath();ctx.arc(-8,-3,4,0,Math.PI*2);ctx.arc(8,-3,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='black';
+  ctx.beginPath();ctx.arc(-8,-3,2,0,Math.PI*2);ctx.arc(8,-3,2,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function update(){
+  // движение
+  if(keys['ArrowLeft']||keys['a']) leaf.vx -= 0.4;
+  if(keys['ArrowRight']||keys['d']) leaf.vx += 0.4;
+
+  leaf.vx *= friction;
+  leaf.vy += gravity;
+  leaf.x += leaf.vx;
+  leaf.y += leaf.vy;
+
+  // коллизия
+  if(leaf.y+leaf.h >= groundLevel){
+    leaf.y = groundLevel - leaf.h;
+    leaf.vy = 0;
+    leaf.onGround = true;
+    leaf.doubleJump = true;
+  } else {
+    leaf.onGround = false;
+  }
+}
+
+function loop(){
+  drawBackground();
+  drawGround();
+  update();
+  drawLeaf(leaf);
+  requestAnimationFrame(loop);
+}
+loop();
+
+// управление
+addEventListener('keydown', e=>{
+  keys[e.key]=true;
+  if(e.key===' '){
+    if(leaf.onGround){
+      leaf.vy=-10;
+      leaf.onGround=false;
+    } else if(leaf.doubleJump){
+      leaf.vy=-9;
+      leaf.doubleJump=false;
+    }
+  }
+});
+addEventListener('keyup', e=>keys[e.key]=false);
+</script>
+</body>
+</html>
