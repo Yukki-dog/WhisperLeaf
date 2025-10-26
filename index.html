@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Whisper Leaf — Тест</title>
+<title>Whisper Leaf — Играбельный тест</title>
 <style>
   html,body{
     margin:0;
@@ -21,22 +21,28 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
+// управление
 const keys = {};
-const gravity = 0.45;
-const friction = 0.8;
-const groundLevel = canvas.height - 120;
 
+// параметры игрока
 let leaf = {
-  x: 120,
+  x: 150,
   y: 0,
   w: 40,
   h: 40,
   vx: 0,
   vy: 0,
+  speed: 5,
+  jumpPower: 12,
   onGround: false,
   doubleJump: true
 };
 
+const gravity = 0.7; // более реальная гравитация
+const friction = 0.85; // лёгкое трение
+const groundLevel = canvas.height - 120;
+
+// функции отрисовки
 function drawBackground(){
   const grad = ctx.createLinearGradient(0,0,0,canvas.height);
   grad.addColorStop(0,'#f8f3e7');
@@ -61,7 +67,7 @@ function drawGround(){
 
 function drawLeaf(l){
   ctx.save();
-  ctx.translate(l.x+l.w/2,l.y+l.h/2);
+  ctx.translate(l.x+l.w/2, l.y+l.h/2);
   ctx.rotate(Math.sin(Date.now()/300)*0.05);
   const grad = ctx.createLinearGradient(-l.w, -l.h/2, l.w, l.h/2);
   grad.addColorStop(0,'#5ba93a');
@@ -81,17 +87,18 @@ function drawLeaf(l){
   ctx.restore();
 }
 
+// обновление позиции игрока
 function update(){
-  // движение
-  if(keys['ArrowLeft']||keys['a']) leaf.vx -= 0.4;
-  if(keys['ArrowRight']||keys['d']) leaf.vx += 0.4;
+  // движение влево/вправо
+  if(keys['ArrowLeft']||keys['a']) leaf.vx -= leaf.speed * 0.2;
+  if(keys['ArrowRight']||keys['d']) leaf.vx += leaf.speed * 0.2;
 
   leaf.vx *= friction;
   leaf.vy += gravity;
   leaf.x += leaf.vx;
   leaf.y += leaf.vy;
 
-  // коллизия
+  // коллизия с землёй
   if(leaf.y+leaf.h >= groundLevel){
     leaf.y = groundLevel - leaf.h;
     leaf.vy = 0;
@@ -102,6 +109,7 @@ function update(){
   }
 }
 
+// игровой цикл
 function loop(){
   drawBackground();
   drawGround();
@@ -111,15 +119,15 @@ function loop(){
 }
 loop();
 
-// управление
+// события клавиатуры
 addEventListener('keydown', e=>{
   keys[e.key]=true;
   if(e.key===' '){
     if(leaf.onGround){
-      leaf.vy=-10;
+      leaf.vy=-leaf.jumpPower;
       leaf.onGround=false;
     } else if(leaf.doubleJump){
-      leaf.vy=-9;
+      leaf.vy=-leaf.jumpPower*0.9;
       leaf.doubleJump=false;
     }
   }
